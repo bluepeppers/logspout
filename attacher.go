@@ -6,9 +6,12 @@ import (
 	"log"
 	"strings"
 	"sync"
+	"regexp"
 
 	"github.com/fsouza/go-dockerclient"
 )
+
+var envNameRegex = regexp.MustCompile("_PROGRAM_NAME=(.*)")
 
 type AttachManager struct {
 	sync.Mutex
@@ -45,7 +48,16 @@ func NewAttachManager(client *docker.Client) *AttachManager {
 func (m *AttachManager) attach(id string) {
 	container, err := m.client.InspectContainer(id)
 	assert(err, "attacher")
+
 	name := container.Name[1:]
+	for _, v := range container.Config.Env {
+		sm := envNameRegex.FindStringSubmatch(v)
+		if len(sm) < 2 {
+			continue
+		}
+		name = sm[1]
+	}
+
 	success := make(chan struct{})
 	failure := make(chan error)
 	outrd, outwr := io.Pipe()
